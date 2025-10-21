@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+</head>
+<body>
+    <a-scene>
+        <!-- Sky/Background -->
+        <a-sky color="#000022"></a-sky>
+        
+        <!-- VR Controllers -->
+        <a-entity id="leftController" 
+                  hand-controls="hand: left"
+                  thumbstick-controls></a-entity>
+        <a-entity id="rightController" 
+                  hand-controls="hand: right"
+                  thumbstick-controls></a-entity>
+        
+        <!-- Player Ship -->
+        <a-entity id="player" vr-player-controls
+                  geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
+                  material="color: #00ff00"
+                  position="0 -2 -3">
+        </a-entity>
+        
+        <!-- Enemy Spawner -->
+        <a-entity enemy-spawner></a-entity>
+        
+        <a-camera position="0 0 3"></a-camera>
+		
+		<a-entity id="player" vr-player-controls player-health
+          geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
+          material="color: #00ff00"
+          position="0 -2 -3">
+		</a-entity>
+		
+    </a-scene>
+
+    <script>
+        // VR Player Controls
+        AFRAME.registerComponent('vr-player-controls', {
+            init: function () {
+                this.leftController = document.querySelector('#leftController');
+                this.rightController = document.querySelector('#rightController');
+            },
+            tick: function () {
+                let position = this.el.getAttribute('position');
+                
+                if (this.leftController) {
+                    let thumbstick = this.leftController.components['thumbstick-controls'];
+                    if (thumbstick) {
+                        let axes = thumbstick.data;
+                        if (axes.x < -0.3 && position.x > -4) {
+                            position.x -= 0.05;
+                        }
+                        if (axes.x > 0.3 && position.x < 4) {
+                            position.x += 0.05;
+                        }
+                    }
+                }
+                
+                this.el.setAttribute('position', position);
+            }
+        });
+
+        // Enemy Collision System (Tetris-style stacking)
+        AFRAME.registerComponent('simple-stack-collision', {
+            init: function () {
+                this.isMoving = true;
+                this.groundLevel = -3.5;
+            },
+            
+            tick: function () {
+                if (!this.isMoving) return;
+                
+                let myPosition = this.el.getAttribute('position');
+                
+                if (myPosition.y <= this.groundLevel) {
+                    this.stopAtPosition(myPosition.x, this.groundLevel);
+                    return;
+                }
+                
+                this.checkEnemyCollisions(myPosition);
+            },
+            
+            checkEnemyCollisions: function(myPosition) {
+                let enemies = document.querySelectorAll('.enemy');
+                
+                for (let enemy of enemies) {
+                    if (enemy === this.el) continue;
+                    if (enemy.components['simple-stack-collision'] && enemy.components['simple-stack-collision'].isMoving) continue;
+                    
+                    let otherPosition = enemy.getAttribute('position');
+                    
+                    let horizontalDist = Math.abs(myPosition.x - otherPosition.x);
+                    if (horizontalDist < 0.3) {
+                        let verticalDist = myPosition.y - otherPosition.y;
+                        if (verticalDist > 0 && verticalDist < 0.6) {
+                            this.stopAtPosition(otherPosition.x, otherPosition.y + 0.4);
+                            return;
+                        }
+                    }
+                }
+            },
+            
+            stopAtPosition: function(x, y) {
+                this.isMoving = false;
+                this.el.removeAttribute('animation');
+                this.el.setAttribute('position', {x: x, y: y, z: -3});
+                this.el.setAttribute('material', 'color: blue');
+                console.log(`Enemy stopped at position: ${x}, ${y}`);
+            }
+        });
+
+        // Enemy Spawner
+        AFRAME.registerComponent('enemy-spawner', {
+            init: function () {
+                this.spawnTimer = 0;
+                this.spawnInterval = 2000;
+                this.enemyCount = 0;
+            },
+            
+            tick: function (time, deltaTime) {
+                this.spawnTimer += deltaTime;
+                
+                if (this.spawnTimer >= this.spawnInterval) {
+                    this.spawnEnemy();
+                    this.spawnTimer = 0;
+                }
+            },
+            
+            spawnEnemy: function () {
+                let enemy = document.createElement('a-entity');
+                enemy.setAttribute('geometry', 'primitive: box; width: 0.4; height: 0.4; depth: 0.2');
+                enemy.setAttribute('material', 'color: red');
+                enemy.setAttribute('simple-stack-collision', '');
+                
+                let randomX = (Math.random() - 0.5) * 6;
+                enemy.setAttribute('position', `${randomX} 3 -3`);
+                enemy.setAttribute('animation', 'property: position; to: ' + randomX + ' -4 -3; dur: 4000');
+                
+                enemy.setAttribute('class', 'enemy');
+                enemy.setAttribute('id', 'enemy-' + this.enemyCount);
+                this.enemyCount++;
+                
+                document.querySelector('a-scene').appendChild(enemy);
+                console.log('Enemy spawned at position:', randomX);
+            }
+        });
+		AFRAME.registerComponent('player-health', {
+    init: function () {
+        this.health = 3;
+        this.maxHealth = 3;
+        this.invulnerable = false;
+        this.invulnerabilityTime = 1000; // 1 second of invulnerability after hit
+        this.createHealthDisplay();
+    },
+    
+    tick: function () {
+        this.checkEnemyCollisions();
+    },
+    
+    checkEnemyCollisions: function () {
+        if (this.invulnerable) return;
+        
+        let playerPosition = this.el.getAttribute('position');
+        let enemies = document.querySelectorAll('.enemy');
+        
+        enemies.forEach((enemy) => {
+            let enemyPosition = enemy.getAttribute('position');
+            let distance = this.getDistance(playerPosition, enemyPosition);
+            
+            // If collision detected
+            if (distance < 0.6) {
+                this.takeDamage();
+                // Remove the enemy that hit the player
+                enemy.parentNode.removeChild(enemy);
+            }
+        });
+    },
+    
+    getDistance: function (pos1, pos2) {
+        let dx = pos1.x - pos2.x;
+        let dy = pos1.y - pos2.y;
+        let dz = pos1.z - pos2.z;
+        return Math.sqrt(dx*dx + dy*dy + dz*dz);
+    },
+    
+    takeDamage: function () {
+        this.health--;
+        this.updateHealthDisplay();
+        
+        // Flash red when hit
+        this.el.setAttribute('material', 'color: red');
+        setTimeout(() => {
+            this.el.setAttribute('material', 'color: #00ff00');
+        }, 200);
+        
+        // Temporary invulnerability
+        this.invulnerable = true;
+        setTimeout(() => {
+            this.invulnerable = false;
+        }, this.invulnerabilityTime);
+        
+        console.log(`Player hit! Health: ${this.health}/${this.maxHealth}`);
+        
+        if (this.health <= 0) {
+            this.gameOver();
+        }
+    },
+    
+    createHealthDisplay: function () {
+        // Create health text in VR space
+        let healthText = document.createElement('a-text');
+        healthText.setAttribute('id', 'health-display');
+        healthText.setAttribute('value', `Health: ${this.health}/${this.maxHealth}`);
+        healthText.setAttribute('position', '-2 2 -2');
+        healthText.setAttribute('color', 'white');
+        healthText.setAttribute('scale', '2 2 2');
+        document.querySelector('a-scene').appendChild(healthText);
+    },
+    
+    updateHealthDisplay: function () {
+        let healthDisplay = document.querySelector('#health-display');
+        if (healthDisplay) {
+            healthDisplay.setAttribute('value', `Health: ${this.health}/${this.maxHealth}`);
+        }
+    },
+    
+    gameOver: function () {
+        console.log('Game Over!');
+        // Create game over text
+        let gameOverText = document.createElement('a-text');
+        gameOverText.setAttribute('value', 'GAME OVER');
+        gameOverText.setAttribute('position', '0 0 -2');
+        gameOverText.setAttribute('color', 'red');
+        gameOverText.setAttribute('scale', '3 3 3');
+        gameOverText.setAttribute('align', 'center');
+        document.querySelector('a-scene').appendChild(gameOverText);
+        
+        // Stop enemy spawning
+        let spawner = document.querySelector('[enemy-spawner]');
+        if (spawner) {
+            spawner.removeAttribute('enemy-spawner');
+        }
+    }
+});
+    </script>
+</body>
+</html>
