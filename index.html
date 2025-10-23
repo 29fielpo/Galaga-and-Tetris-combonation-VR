@@ -8,60 +8,89 @@
         <!-- Sky/Background -->
         <a-sky color="#000022"></a-sky>
         
-        <!-- VR Controllers -->
         <a-entity id="leftController" 
-                  hand-controls="hand: left"
-                  thumbstick-controls></a-entity>
-        <a-entity id="rightController" 
-                  hand-controls="hand: right"
-                  thumbstick-controls></a-entity>
+          oculus-touch-controls="hand: left; model: true"
+          tracked-controls="controller: 0"></a-entity>
+		<a-entity id="rightController" 
+          oculus-touch-controls="hand: right; model: true"
+          tracked-controls="controller: 1"></a-entity>
+
+		<!-- Player Ship - note the component name change -->
+		<a-entity id="player" quest-player-controls player-health
+          geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
+          material="color: #00ff00"
+          position="0 -2 -3">
+		</a-entity>
         
-        <!-- Player Ship -->
-        <a-entity id="player" vr-player-controls
-                  geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
-                  material="color: #00ff00"
-                  position="0 -2 -3">
-        </a-entity>
-        
-        <!-- Enemy Spawner -->
-        <a-entity enemy-spawner></a-entity>
-        
-        <a-camera position="0 0 3"></a-camera>
-		
-		<a-entity id="player" vr-player-controls player-health
+		<!-- Player Ship with shooting -->
+		<a-entity id="player" quest-player-controls player-health player-shooting
           geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
           material="color: #00ff00"
           position="0 -2 -3">
 		</a-entity>
 		
+        <!-- Enemy Spawner -->
+        <a-entity enemy-spawner></a-entity>
+        
+        <a-camera position="0 0 3"></a-camera>
+		
     </a-scene>
 
     <script>
-        // VR Player Controls
-        AFRAME.registerComponent('vr-player-controls', {
-            init: function () {
-                this.leftController = document.querySelector('#leftController');
-                this.rightController = document.querySelector('#rightController');
-            },
-            tick: function () {
-                let position = this.el.getAttribute('position');
-                
-                if (this.leftController) {
-                    let thumbstick = this.leftController.components['thumbstick-controls'];
-                    if (thumbstick) {
-                        let axes = thumbstick.data;
-                        if (axes.x < -0.3 && position.x > -4) {
-                            position.x -= 0.05;
-                        }
-                        if (axes.x > 0.3 && position.x < 4) {
-                            position.x += 0.05;
-                        }
+       AFRAME.registerComponent('quest-player-controls', {
+    init: function () {
+        this.leftController = null;
+        this.rightController = null;
+        
+        // Wait for Quest controllers to initialize
+        setTimeout(() => {
+            this.leftController = document.querySelector('#leftController');
+            this.rightController = document.querySelector('#rightController');
+        }, 2000);
+    },
+    
+    tick: function () {
+        let position = this.el.getAttribute('position');
+        
+        // Check left controller thumbstick
+        if (this.leftController) {
+            let leftGamepad = this.leftController.components['tracked-controls'];
+            if (leftGamepad && leftGamepad.controller) {
+                let axes = leftGamepad.controller.axes;
+                if (axes && axes.length >= 4) {
+                    let thumbstickX = axes[2]; // Quest 3 left thumbstick X
+                    
+                    if (thumbstickX < -0.2 && position.x > -4) {
+                        position.x -= 0.03;
+                    }
+                    if (thumbstickX > 0.2 && position.x < 4) {
+                        position.x += 0.03;
                     }
                 }
-                
-                this.el.setAttribute('position', position);
             }
-        });
+        }
+        
+        // Also check right controller as backup
+        if (this.rightController) {
+            let rightGamepad = this.rightController.components['tracked-controls'];
+            if (rightGamepad && rightGamepad.controller) {
+                let axes = rightGamepad.controller.axes;
+                if (axes && axes.length >= 4) {
+                    let thumbstickX = axes[2]; // Quest 3 right thumbstick X
+                    
+                    if (thumbstickX < -0.2 && position.x > -4) {
+                        position.x -= 0.03;
+                    }
+                    if (thumbstickX > 0.2 && position.x < 4) {
+                        position.x += 0.03;
+                    }
+                }
+            }
+        }
+        
+        this.el.setAttribute('position', position);
+    }
+});
 
         // Enemy Collision System (Tetris-style stacking)
         AFRAME.registerComponent('simple-stack-collision', {
@@ -242,6 +271,137 @@
         let spawner = document.querySelector('[enemy-spawner]');
         if (spawner) {
             spawner.removeAttribute('enemy-spawner');
+        }
+    }
+});
+
+// Player Shooting System
+AFRAME.registerComponent('player-shooting', {
+    init: function () {
+        this.bullets = [];
+        this.canShoot = true;
+        this.shootCooldown = 300; // 300ms between shots
+        this.points = 0;
+        this.createPointsDisplay();
+        this.setupShootingControls();
+    },
+    
+    setupShootingControls: function () {
+        // Listen for trigger button presses on both controllers
+        let leftController = document.querySelector('#leftController');
+        let rightController = document.querySelector('#rightController');
+        
+        if (leftController) {
+            leftController.addEventListener('triggerdown', () => {
+                this.shoot();
+            });
+        }
+        
+        if (rightController) {
+            rightController.addEventListener('triggerdown', () => {
+                this.shoot();
+            });
+        }
+    },
+    
+    shoot: function () {
+        if (!this.canShoot) return;
+        
+        let playerPosition = this.el.getAttribute('position');
+        
+        // Create bullet
+        let bullet = document.createElement('a-entity');
+        bullet.setAttribute('geometry', 'primitive: dodecahedron; radius: 0.05');
+        bullet.setAttribute('material', 'color: white');
+        bullet.setAttribute('position', `${playerPosition.x} ${playerPosition.y + 0.2} ${playerPosition.z}`);
+        bullet.setAttribute('animation', `property: position; to: ${playerPosition.x} 4 ${playerPosition.z}; dur: 1000`);
+        bullet.setAttribute('class', 'bullet');
+        
+        document.querySelector('a-scene').appendChild(bullet);
+        this.bullets.push(bullet);
+        
+        // Remove bullet after animation
+        setTimeout(() => {
+            if (bullet.parentNode) {
+                bullet.parentNode.removeChild(bullet);
+            }
+            this.bullets = this.bullets.filter(b => b !== bullet);
+        }, 1000);
+        
+        // Shooting cooldown
+        this.canShoot = false;
+        setTimeout(() => {
+            this.canShoot = true;
+        }, this.shootCooldown);
+        
+        console.log('Bullet fired!');
+    },
+    
+    tick: function () {
+        this.checkBulletCollisions();
+    },
+    
+    checkBulletCollisions: function () {
+        let enemies = document.querySelectorAll('.enemy');
+        
+        this.bullets.forEach((bullet, bulletIndex) => {
+            if (!bullet.parentNode) return;
+            
+            let bulletPosition = bullet.getAttribute('position');
+            
+            enemies.forEach((enemy) => {
+                if (!enemy.parentNode) return;
+                
+                let enemyPosition = enemy.getAttribute('position');
+                let distance = this.getDistance(bulletPosition, enemyPosition);
+                
+                if (distance < 0.3) {
+                    // Hit detected!
+                    this.addPoints(10);
+                    
+                    // Remove bullet and enemy
+                    if (bullet.parentNode) {
+                        bullet.parentNode.removeChild(bullet);
+                    }
+                    if (enemy.parentNode) {
+                        enemy.parentNode.removeChild(enemy);
+                    }
+                    
+                    // Remove from bullets array
+                    this.bullets = this.bullets.filter(b => b !== bullet);
+                    
+                    console.log(`Enemy destroyed! Points: ${this.points}`);
+                }
+            });
+        });
+    },
+    
+    getDistance: function (pos1, pos2) {
+        let dx = pos1.x - pos2.x;
+        let dy = pos1.y - pos2.y;
+        let dz = pos1.z - pos2.z;
+        return Math.sqrt(dx*dx + dy*dy + dz*dz);
+    },
+    
+    addPoints: function (points) {
+        this.points += points;
+        this.updatePointsDisplay();
+    },
+    
+    createPointsDisplay: function () {
+        let pointsText = document.createElement('a-text');
+        pointsText.setAttribute('id', 'points-display');
+        pointsText.setAttribute('value', `Points: ${this.points}`);
+        pointsText.setAttribute('position', '2 2 -2');
+        pointsText.setAttribute('color', 'yellow');
+        pointsText.setAttribute('scale', '2 2 2');
+        document.querySelector('a-scene').appendChild(pointsText);
+    },
+    
+    updatePointsDisplay: function () {
+        let pointsDisplay = document.querySelector('#points-display');
+        if (pointsDisplay) {
+            pointsDisplay.setAttribute('value', `Points: ${this.points}`);
         }
     }
 });
