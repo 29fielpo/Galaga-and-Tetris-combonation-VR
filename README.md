@@ -1,2 +1,2 @@
-# Galaga-and-Tetris-combonation-VR
+# Galaga-Tetris-VR
 idk anymore :/
