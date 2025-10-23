@@ -7,13 +7,6 @@
     <a-scene>
         <!-- Sky/Background -->
         <a-sky color="#000022"></a-sky>
-        
-        <a-entity id="leftController" 
-          oculus-touch-controls="hand: left; model: true"
-          tracked-controls="controller: 0"></a-entity>
-		<a-entity id="rightController" 
-          oculus-touch-controls="hand: right; model: true"
-          tracked-controls="controller: 1"></a-entity>
 
 		<!-- Player Ship - note the component name change -->
 		<a-entity id="player" quest-player-controls player-health
@@ -22,13 +15,6 @@
           position="0 -2 -3">
 		</a-entity>
         
-		<!-- Player Ship with shooting -->
-		<a-entity id="player" quest-player-controls player-health player-shooting
-          geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
-          material="color: #00ff00"
-          position="0 -2 -3">
-		</a-entity>
-		
         <!-- Enemy Spawner -->
         <a-entity enemy-spawner></a-entity>
         
@@ -37,61 +23,6 @@
     </a-scene>
 
     <script>
-       AFRAME.registerComponent('quest-player-controls', {
-    init: function () {
-        this.leftController = null;
-        this.rightController = null;
-        
-        // Wait for Quest controllers to initialize
-        setTimeout(() => {
-            this.leftController = document.querySelector('#leftController');
-            this.rightController = document.querySelector('#rightController');
-        }, 2000);
-    },
-    
-    tick: function () {
-        let position = this.el.getAttribute('position');
-        
-        // Check left controller thumbstick
-        if (this.leftController) {
-            let leftGamepad = this.leftController.components['tracked-controls'];
-            if (leftGamepad && leftGamepad.controller) {
-                let axes = leftGamepad.controller.axes;
-                if (axes && axes.length >= 4) {
-                    let thumbstickX = axes[2]; // Quest 3 left thumbstick X
-                    
-                    if (thumbstickX < -0.2 && position.x > -4) {
-                        position.x -= 0.03;
-                    }
-                    if (thumbstickX > 0.2 && position.x < 4) {
-                        position.x += 0.03;
-                    }
-                }
-            }
-        }
-        
-        // Also check right controller as backup
-        if (this.rightController) {
-            let rightGamepad = this.rightController.components['tracked-controls'];
-            if (rightGamepad && rightGamepad.controller) {
-                let axes = rightGamepad.controller.axes;
-                if (axes && axes.length >= 4) {
-                    let thumbstickX = axes[2]; // Quest 3 right thumbstick X
-                    
-                    if (thumbstickX < -0.2 && position.x > -4) {
-                        position.x -= 0.03;
-                    }
-                    if (thumbstickX > 0.2 && position.x < 4) {
-                        position.x += 0.03;
-                    }
-                }
-            }
-        }
-        
-        this.el.setAttribute('position', position);
-    }
-});
-
         // Enemy Collision System (Tetris-style stacking)
         AFRAME.registerComponent('simple-stack-collision', {
             init: function () {
@@ -402,6 +333,93 @@ AFRAME.registerComponent('player-shooting', {
         let pointsDisplay = document.querySelector('#points-display');
         if (pointsDisplay) {
             pointsDisplay.setAttribute('value', `Points: ${this.points}`);
+        }
+    }
+});
+
+AFRAME.registerComponent('quest-player-controls', {
+    init: function () {
+        this.leftController = null;
+        this.rightController = null;
+        this.keys = {};
+        
+        // Keyboard fallback for testing
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
+        
+        // Wait for controllers
+        setTimeout(() => {
+            this.leftController = document.querySelector('#leftController');
+            this.rightController = document.querySelector('#rightController');
+            this.setupControllerEvents();
+        }, 2000);
+    },
+    
+    setupControllerEvents: function () {
+        // Use button events instead of thumbstick
+        if (this.leftController) {
+            // X button (left) and Y button (right) on left controller
+            this.leftController.addEventListener('xbuttondown', () => {
+                this.moveLeft = true;
+            });
+            this.leftController.addEventListener('xbuttonup', () => {
+                this.moveLeft = false;
+            });
+            this.leftController.addEventListener('ybuttondown', () => {
+                this.moveRight = true;
+            });
+            this.leftController.addEventListener('ybuttonup', () => {
+                this.moveRight = false;
+            });
+        }
+        
+        if (this.rightController) {
+            // A button (left) and B button (right) on right controller
+            this.rightController.addEventListener('abuttondown', () => {
+                this.moveLeft = true;
+            });
+            this.rightController.addEventListener('abuttonup', () => {
+                this.moveLeft = false;
+            });
+            this.rightController.addEventListener('bbuttondown', () => {
+                this.moveRight = true;
+            });
+            this.rightController.addEventListener('bbuttonup', () => {
+                this.moveRight = false;
+            });
+        }
+    },
+    
+    tick: function () {
+        let position = this.el.getAttribute('position');
+        let moved = false;
+        
+        // Keyboard controls (for testing on computer)
+        if (this.keys['ArrowLeft'] && position.x > -4) {
+            position.x -= 0.05;
+            moved = true;
+        }
+        if (this.keys['ArrowRight'] && position.x < 4) {
+            position.x += 0.05;
+            moved = true;
+        }
+        
+        // Controller button controls
+        if (this.moveLeft && position.x > -4) {
+            position.x -= 0.05;
+            moved = true;
+        }
+        if (this.moveRight && position.x < 4) {
+            position.x += 0.05;
+            moved = true;
+        }
+        
+        if (moved) {
+            this.el.setAttribute('position', position);
         }
     }
 });
