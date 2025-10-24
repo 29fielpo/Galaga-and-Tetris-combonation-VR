@@ -17,6 +17,19 @@
         
         <!-- Enemy Spawner -->
         <a-entity enemy-spawner></a-entity>
+
+		<!-- Alternative Quest 3 controller setup -->
+<a-entity id="leftController" 
+          oculus-touch-controls="hand: left; model: true"
+          laser-controls="hand: left"
+          raycaster="objects: .interactive">
+</a-entity>
+
+<a-entity id="rightController" 
+          oculus-touch-controls="hand: right; model: true" 
+          laser-controls="hand: right"
+          raycaster="objects: .interactive">
+</a-entity>
         
         <a-camera position="0 0 3"></a-camera>
 		
