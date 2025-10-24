@@ -17,18 +17,15 @@
         
         <!-- Enemy Spawner -->
         <a-entity enemy-spawner></a-entity>
-
-		<!-- Alternative Quest 3 controller setup -->
+		
+		<!-- Fixed Quest 3 Controllers -->
 <a-entity id="leftController" 
           oculus-touch-controls="hand: left; model: true"
-          laser-controls="hand: left"
-          raycaster="objects: .interactive">
+          tracked-controls="controller: 0; idPrefix: oculus-touch-controls">
 </a-entity>
-
 <a-entity id="rightController" 
-          oculus-touch-controls="hand: right; model: true" 
-          laser-controls="hand: right"
-          raycaster="objects: .interactive">
+          oculus-touch-controls="hand: right; model: true"
+          tracked-controls="controller: 1; idPrefix: oculus-touch-controls">
 </a-entity>
         
         <a-camera position="0 0 3"></a-camera>
@@ -219,33 +216,47 @@
     }
 });
 
-// Player Shooting System
+// Fixed Player Shooting for Quest 3
 AFRAME.registerComponent('player-shooting', {
     init: function () {
         this.bullets = [];
         this.canShoot = true;
-        this.shootCooldown = 300; // 300ms between shots
+        this.shootCooldown = 300;
         this.points = 0;
         this.createPointsDisplay();
-        this.setupShootingControls();
+        
+        // Wait for controllers then setup shooting
+        setTimeout(() => {
+            this.setupShootingControls();
+        }, 3000);
     },
     
     setupShootingControls: function () {
-        // Listen for trigger button presses on both controllers
         let leftController = document.querySelector('#leftController');
         let rightController = document.querySelector('#rightController');
         
+        console.log('Setting up shooting controls...');
+        
         if (leftController) {
             leftController.addEventListener('triggerdown', () => {
+                console.log('Left trigger pressed - shooting!');
                 this.shoot();
             });
         }
         
         if (rightController) {
             rightController.addEventListener('triggerdown', () => {
+                console.log('Right trigger pressed - shooting!');
                 this.shoot();
             });
         }
+        
+        // Keyboard backup for testing
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                this.shoot();
+            }
+        });
     },
     
     shoot: function () {
@@ -253,10 +264,9 @@ AFRAME.registerComponent('player-shooting', {
         
         let playerPosition = this.el.getAttribute('position');
         
-        // Create bullet
         let bullet = document.createElement('a-entity');
         bullet.setAttribute('geometry', 'primitive: dodecahedron; radius: 0.05');
-        bullet.setAttribute('material', 'color: white');
+        bullet.setAttribute('material', 'color: yellow');
         bullet.setAttribute('position', `${playerPosition.x} ${playerPosition.y + 0.2} ${playerPosition.z}`);
         bullet.setAttribute('animation', `property: position; to: ${playerPosition.x} 4 ${playerPosition.z}; dur: 1000`);
         bullet.setAttribute('class', 'bullet');
@@ -264,7 +274,6 @@ AFRAME.registerComponent('player-shooting', {
         document.querySelector('a-scene').appendChild(bullet);
         this.bullets.push(bullet);
         
-        // Remove bullet after animation
         setTimeout(() => {
             if (bullet.parentNode) {
                 bullet.parentNode.removeChild(bullet);
@@ -272,7 +281,6 @@ AFRAME.registerComponent('player-shooting', {
             this.bullets = this.bullets.filter(b => b !== bullet);
         }, 1000);
         
-        // Shooting cooldown
         this.canShoot = false;
         setTimeout(() => {
             this.canShoot = true;
@@ -288,7 +296,7 @@ AFRAME.registerComponent('player-shooting', {
     checkBulletCollisions: function () {
         let enemies = document.querySelectorAll('.enemy');
         
-        this.bullets.forEach((bullet, bulletIndex) => {
+        this.bullets.forEach((bullet) => {
             if (!bullet.parentNode) return;
             
             let bulletPosition = bullet.getAttribute('position');
@@ -300,10 +308,8 @@ AFRAME.registerComponent('player-shooting', {
                 let distance = this.getDistance(bulletPosition, enemyPosition);
                 
                 if (distance < 0.3) {
-                    // Hit detected!
                     this.addPoints(10);
                     
-                    // Remove bullet and enemy
                     if (bullet.parentNode) {
                         bullet.parentNode.removeChild(bullet);
                     }
@@ -311,9 +317,7 @@ AFRAME.registerComponent('player-shooting', {
                         enemy.parentNode.removeChild(enemy);
                     }
                     
-                    // Remove from bullets array
                     this.bullets = this.bullets.filter(b => b !== bullet);
-                    
                     console.log(`Enemy destroyed! Points: ${this.points}`);
                 }
             });
