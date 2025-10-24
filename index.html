@@ -9,7 +9,7 @@
         <a-sky color="#000022"></a-sky>
 
 		<!-- Player Ship - note the component name change -->
-		<a-entity id="player" quest-player-controls player-health
+		<a-entity id="player" quest-player-controls player-health player-shooting
           geometry="primitive: box; width: 0.5; height: 0.3; depth: 0.2"
           material="color: #00ff00"
           position="0 -2 -3">
@@ -265,8 +265,8 @@ AFRAME.registerComponent('player-shooting', {
         let playerPosition = this.el.getAttribute('position');
         
         let bullet = document.createElement('a-entity');
-        bullet.setAttribute('geometry', 'primitive: dodecahedron; radius: 0.05');
-        bullet.setAttribute('material', 'color: yellow');
+        bullet.setAttribute('geometry', 'primitive: dodecahedron; radius: 0.075');
+        bullet.setAttribute('material', 'color: white');
         bullet.setAttribute('position', `${playerPosition.x} ${playerPosition.y + 0.2} ${playerPosition.z}`);
         bullet.setAttribute('animation', `property: position; to: ${playerPosition.x} 4 ${playerPosition.z}; dur: 1000`);
         bullet.setAttribute('class', 'bullet');
