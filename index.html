@@ -337,68 +337,25 @@ AFRAME.registerComponent('player-shooting', {
     }
 });
 
+// Fixed Quest 3 Movement with Thumbstick (no button conflicts)
 AFRAME.registerComponent('quest-player-controls', {
     init: function () {
-        this.leftController = null;
-        this.rightController = null;
         this.keys = {};
         
-        // Keyboard fallback for testing
+        // Keyboard fallback
         window.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
         });
         window.addEventListener('keyup', (e) => {
             this.keys[e.code] = false;
         });
-        
-        // Wait for controllers
-        setTimeout(() => {
-            this.leftController = document.querySelector('#leftController');
-            this.rightController = document.querySelector('#rightController');
-            this.setupControllerEvents();
-        }, 2000);
-    },
-    
-    setupControllerEvents: function () {
-        // Use button events instead of thumbstick
-        if (this.leftController) {
-            // X button (left) and Y button (right) on left controller
-            this.leftController.addEventListener('xbuttondown', () => {
-                this.moveLeft = true;
-            });
-            this.leftController.addEventListener('xbuttonup', () => {
-                this.moveLeft = false;
-            });
-            this.leftController.addEventListener('ybuttondown', () => {
-                this.moveRight = true;
-            });
-            this.leftController.addEventListener('ybuttonup', () => {
-                this.moveRight = false;
-            });
-        }
-        
-        if (this.rightController) {
-            // A button (left) and B button (right) on right controller
-            this.rightController.addEventListener('abuttondown', () => {
-                this.moveLeft = true;
-            });
-            this.rightController.addEventListener('abuttonup', () => {
-                this.moveLeft = false;
-            });
-            this.rightController.addEventListener('bbuttondown', () => {
-                this.moveRight = true;
-            });
-            this.rightController.addEventListener('bbuttonup', () => {
-                this.moveRight = false;
-            });
-        }
     },
     
     tick: function () {
         let position = this.el.getAttribute('position');
         let moved = false;
         
-        // Keyboard controls (for testing on computer)
+        // Keyboard controls (for testing)
         if (this.keys['ArrowLeft'] && position.x > -4) {
             position.x -= 0.05;
             moved = true;
@@ -408,14 +365,26 @@ AFRAME.registerComponent('quest-player-controls', {
             moved = true;
         }
         
-        // Controller button controls
-        if (this.moveLeft && position.x > -4) {
-            position.x -= 0.05;
-            moved = true;
-        }
-        if (this.moveRight && position.x < 4) {
-            position.x += 0.05;
-            moved = true;
+        // Quest 3 Thumbstick controls
+        let leftController = document.querySelector('#leftController');
+        if (leftController && leftController.components['tracked-controls']) {
+            let gamepad = leftController.components['tracked-controls'].controller;
+            if (gamepad && gamepad.axes && gamepad.axes.length >= 2) {
+                let thumbstickX = gamepad.axes[0]; // Try axis 0 for Quest 3
+                
+                if (Math.abs(thumbstickX) > 0.3) {
+                    console.log('Thumbstick X:', thumbstickX);
+                    
+                    if (thumbstickX < -0.3 && position.x > -4) {
+                        position.x -= 0.05;
+                        moved = true;
+                    }
+                    if (thumbstickX > 0.3 && position.x < 4) {
+                        position.x += 0.05;
+                        moved = true;
+                    }
+                }
+            }
         }
         
         if (moved) {
